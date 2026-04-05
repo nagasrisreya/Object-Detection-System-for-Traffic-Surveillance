@@ -320,51 +320,7 @@ def get_model_options() -> List[str]:
 
 def create_sidebar_config() -> Dict:
     """
-    Create Streamlit sidebar configuration
-    
-    Returns:
-        Configuration dictionary
+    Simplified sidebar for new app
     """
-    st.sidebar.title("⚙️ Configuration")
-    
-    # Model selection
-    model_options = get_model_options()
-    model_choice = st.sidebar.selectbox(
-        "Select YOLO Model",
-        options=[m[0] for m in model_options],
-        format_func=lambda x: next((m[1] for m in model_options if m[0] == x), x)
-    )
-    
-    # Confidence threshold
-    confidence = st.sidebar.slider(
-        "Confidence Threshold",
-        min_value=0.1,
-        max_value=1.0,
-        value=0.25,
-        step=0.05,
-        help="Minimum confidence for detections"
-    )
-    
-    # Display options
-    st.sidebar.subheader("Display Options")
-    show_labels = st.sidebar.checkbox("Show Labels", value=True)
-    show_conf = st.sidebar.checkbox("Show Confidence", value=True)
-    
-    # Performance
-    st.sidebar.subheader("Performance")
-    stream_fps = st.sidebar.slider(
-        "Processing FPS Cap",
-        min_value=1,
-        max_value=60,
-        value=30,
-        help="Limit processing FPS to save resources"
-    )
-    
-    return {
-        'model': model_choice,
-        'confidence': confidence,
-        'show_labels': show_labels,
-        'show_conf': show_conf,
-        'stream_fps': stream_fps
-    }
+    return {}
 

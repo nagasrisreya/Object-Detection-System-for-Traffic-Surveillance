@@ -1,10 +1,8 @@
-# Traffic Surveillance Object Detection System
+# Simple Traffic Detection App
 
 ## Project Overview
-- **Project Name**: Traffic Vision - Real-Time Object Detection System
-- **Type**: Web Application (Streamlit)
-- **Core Functionality**: Real-time traffic surveillance using YOLO models to detect vehicles, pedestrians, traffic signs and signals with bounding box visualization
-- **Target Users**: Traffic monitoring personnel, researchers, security operators
+Simple Streamlit app for traffic detection.
+Upload image or video → YOLOv8 detects vehicles, traffic signs & signals in all frames → annotated output + stats + JSON export.
 
 ## Features
 

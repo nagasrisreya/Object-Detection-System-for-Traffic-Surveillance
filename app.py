@@ -1,13 +1,7 @@
 """
-Traffic Surveillance Object Detection System
-Main Streamlit Application
-
-Features:
-- Multiple input sources: Webcam, Video File, RTSP/IP Camera
-- Real-time object detection using YOLOv8
-- Traffic sign and signal recognition
-- Bounding box visualization
-- Object statistics and counting
+Simple Traffic Detection App
+Image and Video Upload → YOLOv8 Detection of Vehicles, Signs & Signals
+Input only, model detects all frames, outputs annotated + stats
 """
 
 import streamlit as st
@@ -23,18 +17,14 @@ from detector import TrafficDetector
 from utils import (
     draw_advanced_detections,
     get_traffic_element_name,
-    create_statistics_display,
     save_uploaded_file,
     cleanup_temp_file,
-    validate_rtsp_url,
-    create_sidebar_config,
-    get_model_options
 )
 
 # Page configuration
 st.set_page_config(
-    page_title="Traffic Vision - Object Detection",
-    page_icon="🚗",
+    page_title="Traffic Detection",
+    page_icon="🚦",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -45,33 +35,12 @@ st.markdown("""
     .main {
         background-color: #0e1117;
     }
-    .stVideo {
-        border-radius: 10px;
-    }
-    .stat-card {
-        background-color: #1f2937;
-        padding: 20px;
-        border-radius: 10px;
-        margin: 10px 0;
-    }
     .detection-log {
         background-color: #1f2937;
         padding: 15px;
         border-radius: 10px;
         max-height: 300px;
         overflow-y: auto;
-    }
-    .success-message {
-        padding: 10px;
-        background-color: #10b981;
-        border-radius: 5px;
-        color: white;
-    }
-    .warning-message {
-        padding: 10px;
-        background-color: #f59e0b;
-        border-radius: 5px;
-        color: white;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -100,23 +69,70 @@ class TrafficApp:
         """Process webcam feed"""
         st.subheader("📹 Webcam Feed")
         
-        # Webcam selection
-        camera_id = st.selectbox(
-            "Select Camera",
-            options=[0, 1, 2, 3],
-            format_func=lambda x: f"Camera {x}" if x > 0 else "Default Camera"
+        # Camera input type selection
+        camera_type = st.radio(
+            "Camera Type",
+            ["Local Camera", "IP Camera (HTTP/HTTPS)"],
+            horizontal=True,
+            help="Select local camera or IP camera stream"
         )
         
-        run_webcam = st.checkbox("Start Webcam Detection", value=False)
+        if camera_type == "Local Camera":
+            # Local webcam selection
+            camera_id = st.selectbox(
+                "Select Camera",
+                options=[0, 1, 2, 3],
+                format_func=lambda x: f"Camera {x}" if x > 0 else "Default Camera"
+            )
+            video_source = camera_id
+        else:
+            # IP Camera URL input - select preset first
+            preset = st.selectbox(
+                "Camera Preset",
+                ["IP Webcam (Android)", "Generic MJPEG", "Custom URL"]
+            )
+            
+            video_source = ""
+            
+            if preset == "IP Webcam (Android)":
+                # IP Webcam (Android) app - user enters the full URL shown in app
+                video_source = st.text_input(
+                    "Enter IP Webcam URL",
+                    placeholder="http://192.168.1.100:8080/video",
+                    help="Enter the exact URL from your IP Webcam app"
+                )
+            elif preset == "Generic MJPEG":
+                col1, col2 = st.columns(2)
+                with col1:
+                    ip_address = st.text_input("Camera IP", placeholder="192.168.1.100")
+                with col2:
+                    port = st.text_input("Port", value="8080")
+                if ip_address and port:
+                    video_source = f"http://{ip_address}:{port}/video"
+            elif preset == "Custom URL":
+                video_source = st.text_input(
+                    "Enter Camera URL",
+                    placeholder="http://192.168.1.100:8080/video"
+                )
+        
+        run_webcam = st.checkbox("Start Camera Detection", value=False)
         
         if run_webcam:
-            cap = cv2.VideoCapture(camera_id)
+            # Determine video source
+            if isinstance(video_source, str) and (video_source.startswith('http://') or video_source.startswith('https://')):
+                # URL-based stream
+                cap = cv2.VideoCapture(video_source)
+                source_type = "IP Camera"
+            else:
+                # Local camera
+                cap = cv2.VideoCapture(int(video_source) if isinstance(video_source, str) and video_source.isdigit() else video_source)
+                source_type = f"Camera {video_source}"
             
             if not cap.isOpened():
-                st.error(f"Could not open camera {camera_id}")
+                st.error(f"Could not open {source_type}")
                 return
             
-            st.success(f"Camera {camera_id} connected successfully!")
+            st.success(f"{source_type} connected successfully!")
             
             # Create placeholder for video
             video_placeholder = st.empty()
@@ -371,47 +387,28 @@ class TrafficApp:
         st.markdown("### Real-Time Object Detection for Traffic Surveillance")
         st.markdown("---")
         
-        # Sidebar configuration
-        self.config = create_sidebar_config()
+        # Simplified config
+        self.config = {
+            'model': 'yolov8n.pt',
+            'confidence': 0.25,
+            'show_labels': True,
+            'show_conf': True,
+            'stream_fps': 15
+        }
         
         # Initialize detector
         self.initialize_detector()
         
         # Input source selection
-        st.sidebar.markdown("---")
-        st.sidebar.title("📹 Input Source")
+
         
-        input_source = st.sidebar.radio(
-            "Select Input Source",
-            ["Webcam", "Video File", "RTSP/IP Camera"],
-            help="Choose the source for traffic monitoring"
+        # Video processing (main focus)
+        uploaded_file = st.file_uploader(
+            "Upload Video (mp4/avi/mov)",
+            type=['mp4', 'avi', 'mov', 'mkv']
         )
-        
-        # Process based on selection
-        if input_source == "Webcam":
-            self.process_webcam()
-            
-        elif input_source == "Video File":
-            uploaded_file = st.sidebar.file_uploader(
-                "Upload Video File",
-                type=['mp4', 'avi', 'mov', 'mkv'],
-                help="Upload a video file for processing"
-            )
-            
-            if uploaded_file:
-                self.process_video_file(uploaded_file)
-            else:
-                st.info("👈 Please upload a video file from the sidebar")
-                st.markdown("""
-                ### Supported Formats
-                - MP4
-                - AVI
-                - MOV
-                - MKV
-                """)
-                
-        elif input_source == "RTSP/IP Camera":
-            self.process_rtsp_stream()
+        if uploaded_file:
+            self.process_video_file(uploaded_file)
             
         # Cleanup temp files
         for f in self.temp_files:
